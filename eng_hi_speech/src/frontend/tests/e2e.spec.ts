@@ -656,10 +656,10 @@ test.describe("MP3 Download Tests", () => {
     // The download button should be clickable
     // It uses window.open() to open the download URL
     await downloadButton.click();
-    
+
     // Give it a moment for any download/popup action to start
     await page.waitForTimeout(1000);
-    
+
     // If we get here without error, the download button works
     expect(true).toBe(true);
   });
