@@ -43,11 +43,14 @@ A playground implementation that tries to parse structured Markdown articles and
 
 ### 📺 Video Demonstration
 
-<video src="./eng_hi_speech/docs/assets/video/sarvam_ai_article_tts.mp4" controls width="100%" type="video/mp4"></video>
+[**Watch the Video Demonstration**](./eng_hi_speech/docs/assets/video/sarvam_ai_article_tts.mp4)
+
+**Source Article for Translation:**  
+[**Beyond the Transformer: Google’s “Nested Learning” and the Physics of Intelligence**](https://blog.nilayparikh.com/beyond-the-transformer-googles-nested-learning-and-the-physics-of-intelligence-610f143c945a)
 
 ### 🎙️ Audio Sample (Playground Output)
 
-<audio src="./eng_hi_speech/docs/assets/audio/artilce-1a_20260208_210622.mp3" controls></audio>
+[**Listen to Audio Sample**](./eng_hi_speech/docs/assets/audio/artilce-1a_20260208_210622.mp3)
 
 ---
 

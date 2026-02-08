@@ -11,11 +11,14 @@
 
 ### 📺 Video Player
 
-<video src="./docs/assets/video/sarvam_ai_article_tts.mp4" controls width="100%" type="video/mp4"></video>
+[**Watch the Video Demonstration**](./docs/assets/video/sarvam_ai_article_tts.mp4)
+
+**Source Article for Translation:**  
+[**Beyond the Transformer: Google’s “Nested Learning” and the Physics of Intelligence**](https://blog.nilayparikh.com/beyond-the-transformer-googles-nested-learning-and-the-physics-of-intelligence-610f143c945a)
 
 ### 🎙️ Audio Player
 
-<audio src="./docs/assets/audio/artilce-1a_20260208_210622.mp3" controls></audio>
+[**Listen to Audio Sample**](./docs/assets/audio/artilce-1a_20260208_210622.mp3)
 
 ---
 
