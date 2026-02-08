@@ -1,6 +1,35 @@
-# Sarvam TTS - Hindi Text-to-Speech Application
+# Sarvam TTS - Experimental Playground
 
-A comprehensive Text-to-Speech (TTS) application that converts Hindi markdown documents to speech using the Sarvam AI API. Features a modern React frontend with Material-UI and a FastAPI backend.
+---
+
+### 📺 Video Player
+
+<video src="./docs/assets/video/sarvam_ai_article_tts.mp4" controls width="100%"></video>
+
+### 🎙️ Audio Player
+
+<audio src="./docs/assets/audio/artilce-1a_20260208_210622.mp3" controls></audio>
+
+---
+
+> [!WARNING]
+> **NOT FOR PRODUCTION**: This is a playground project for experimentation and fun. Use at your own risk.
+
+A hobbyist Text-to-Speech (TTS) application that converts Hindi markdown documents to speech using the Sarvam AI `bulbul:v3` model.
+
+### 📄 Demo Content
+
+This experiment demonstrates the translation of the paper review:
+**["Beyond the Transformer: Google’s “Nested Learning” and the Physics of Intelligence"](https://blog.nilayparikh.com/beyond-the-transformer-googles-nested-learning-and-the-physics-of-intelligence-610f143c945a)**
+Published by [**Nilay Parikh**](https://blog.nilayparikh.com/).
+
+## 🌟 Playground Vision
+
+This tool is a playground for testing article-to-speech conversion. It's meant to be a fun way to explore:
+
+- **Article Structure**: Headings, titles, and paragraphs.
+- **Lists**: Bullet points and numbered lists with natural pacing.
+- **Languages**: Deep support for Hindi and future extensions for dialects like Gujarati.
 
 ## Features
 
