@@ -59,7 +59,7 @@ def test_parse_content():
 def test_tts_generate(parsed_doc):
     """Test TTS generation with just first chunk."""
     print("\n=== Testing TTS Generation (1 chunk) ===")
-    
+
     # Generate TTS using file-based approach
     resp = client.post(
         f"{BASE_URL}/api/tts/generate",
@@ -77,7 +77,7 @@ def test_tts_generate(parsed_doc):
             "chunks_to_generate": [0]  # Only first chunk for quick test
         }
     )
-    
+
     if resp.status_code == 200:
         data = resp.json()
         print(f"✓ Job ID: {data['job_id']}")
@@ -105,7 +105,7 @@ def test_tts_generate(parsed_doc):
 def test_export_download(job_id):
     """Test export and download."""
     print("\n=== Testing Export & Download ===")
-    
+
     # Export as MP3
     resp = client.post(
         f"{BASE_URL}/api/tts/export",
@@ -115,7 +115,7 @@ def test_export_download(job_id):
             "format": "mp3"
         }
     )
-    
+
     if resp.status_code == 200:
         data = resp.json()
         if data.get('success'):
@@ -123,7 +123,7 @@ def test_export_download(job_id):
             print(f"✓ Output path: {data['output_path']}")
             print(f"✓ File size: {data['file_size_bytes']} bytes")
             print(f"✓ Duration: {data['duration_seconds']:.2f} seconds")
-            
+
             # Test download
             download_resp = client.get(f"{BASE_URL}/api/tts/download/{job_id}?format=mp3")
             if download_resp.status_code == 200:
@@ -140,7 +140,7 @@ def test_export_download(job_id):
     else:
         print(f"✗ Export request failed: {resp.status_code}")
         print(resp.text)
-    
+
     return False
 
 
@@ -148,7 +148,7 @@ def test_summary(job_id):
     """Test API call summary."""
     print("\n=== Testing API Call Summary ===")
     resp = client.get(f"{BASE_URL}/api/tts/summary/{job_id}")
-    
+
     if resp.status_code == 200:
         data = resp.json()
         print(f"✓ Job ID: {data['job_id']}")
@@ -172,31 +172,31 @@ def main():
     print("=" * 60)
     print("TTS API Test Suite")
     print("=" * 60)
-    
+
     # 1. Health check
     api_ready = test_health()
     if not api_ready:
         print("\n⚠ WARNING: Sarvam API key not configured!")
         print("TTS generation will fail without API key.")
-    
+
     # 2. Parse content
     parsed = test_parse_content()
     if not parsed:
         print("\n✗ Parse test failed, aborting.")
         return
-    
+
     # 3. Generate TTS (only if API configured)
     if api_ready:
         job_id = test_tts_generate(parsed)
         if job_id:
             # 4. Test summary
             test_summary(job_id)
-            
+
             # 5. Export and download
             test_export_download(job_id)
     else:
         print("\n⚠ Skipping TTS generation tests (API not configured)")
-    
+
     print("\n" + "=" * 60)
     print("Test Suite Complete!")
     print("=" * 60)
