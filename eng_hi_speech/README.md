@@ -1,19 +1,23 @@
 # Sarvam TTS - Experimental Playground
 
+> [!WARNING]
+> **Experimental Project**: This is a playground project for experimentation and fun. It is **not intended for production use**. Use at your own risk.
+>
+> 🚀 **Updates & Future**: I am developing this into a handy tool for any Indic language TTS (supporting Sarvam AI and a **free local Hindi TTS** that runs without an API key).
+>
+> Follow for updates: [**X (Twitter)**](https://x.com/nilayparikh) | [**LinkedIn**](https://www.linkedin.com/in/niparikh/)
+
 ---
 
 ### 📺 Video Player
 
-<video src="./docs/assets/video/sarvam_ai_article_tts.mp4" controls width="100%"></video>
+<video src="./docs/assets/video/sarvam_ai_article_tts.mp4" controls width="100%" type="video/mp4"></video>
 
 ### 🎙️ Audio Player
 
 <audio src="./docs/assets/audio/artilce-1a_20260208_210622.mp3" controls></audio>
 
 ---
-
-> [!WARNING]
-> **NOT FOR PRODUCTION**: This is a playground project for experimentation and fun. Use at your own risk.
 
 A hobbyist Text-to-Speech (TTS) application that converts Hindi markdown documents to speech using the Sarvam AI `bulbul:v3` model.
 
@@ -178,9 +182,9 @@ After generation completes, the summary card shows:
 SARVAM_API_KEY=your-api-key-here
 SARVAM_BASE_URL=https://api.sarvam.ai
 
-# Paths (relative to workspace root)
-TRANSLATE_DIR=../../../pipeline/translate
-SPEECH_OUTPUT_DIR=../../../pipeline/speech
+# Paths (relative to backend directory)
+TRANSLATE_DIR=../../pipeline/translate
+SPEECH_OUTPUT_DIR=../../pipeline/speech
 
 # Defaults
 DEFAULT_SPEAKER=shubh
@@ -275,3 +279,10 @@ MIT License
 ## Support
 
 For issues or questions, please open a GitHub issue.
+
+## Connect
+
+Follow **@nilayparikh** for updates:
+
+- **X (Twitter)**: [@nilayparikh](https://x.com/nilayparikh)
+- **LinkedIn**: [niparikh](https://www.linkedin.com/in/niparikh/)
