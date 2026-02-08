@@ -8,16 +8,53 @@ Provides REST API for:
 - Audio preview and export
 - File upload and markdown writing
 - API call statistics
+- Real-time progress streaming via SSE
 """
 import base64
+import logging
+import sys
+import asyncio
+import json
 from pathlib import Path
 from typing import Optional
 from contextlib import asynccontextmanager
+from datetime import datetime
 
-from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from pydantic import BaseModel
+from sse_starlette.sse import EventSourceResponse
+
+
+# Configure logging
+def setup_logging():
+    """Setup comprehensive logging for the application."""
+    # Create formatter
+    formatter = logging.Formatter(
+        '%(asctime)s | %(levelname)-8s | %(name)-20s | %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+
+    # Console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    console_handler.setLevel(logging.INFO)
+
+    # Get root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    root_logger.addHandler(console_handler)
+
+    # Reduce noise from other libraries
+    logging.getLogger('httpx').setLevel(logging.WARNING)
+    logging.getLogger('httpcore').setLevel(logging.WARNING)
+    logging.getLogger('uvicorn.access').setLevel(logging.WARNING)
+
+    return logging.getLogger('tts_backend')
+
+# Initialize logging
+logger = setup_logging()
 
 from config import get_settings
 from models import (
@@ -46,15 +83,21 @@ from services import (
 VERSION = "1.0.0"
 
 
+# Store for active generation jobs
+_active_jobs: dict[str, dict] = {}
+# Rate limiting tracker
+_request_tracker: dict[str, list[float]] = {}
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     # Startup
     settings = get_settings()
-    print(f"Starting TTS Backend v{VERSION}")
-    print(f"Translate path: {settings.translate_dir}")
-    print(f"Speech output path: {settings.speech_output_dir}")
-    print(f"Sarvam AI configured: {bool(settings.sarvam_api_key)}")
+    logger.info(f"Starting TTS Backend v{VERSION}")
+    logger.info(f"Translate path: {settings.translate_dir}")
+    logger.info(f"Speech output path: {settings.speech_output_dir}")
+    logger.info(f"Sarvam AI configured: {bool(settings.sarvam_api_key)}")
 
     # Ensure speech output directory exists
     settings.speech_output_dir.mkdir(parents=True, exist_ok=True)
@@ -62,7 +105,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
-    print("Shutting down TTS Backend")
+    logger.info("Shutting down TTS Backend")
 
 
 # Create FastAPI app
@@ -198,16 +241,52 @@ async def parse_markdown(request: ParseRequest):
 
 # Store for active generation jobs
 _active_jobs: dict[str, dict] = {}
+_rate_limit_requests: dict[str, list[float]] = {}
+_rate_limit_max = 5  # Max concurrent requests per client
+_rate_limit_window = 60  # Window in seconds
+
+
+def check_rate_limit(client_ip: str) -> bool:
+    """Check if client has exceeded rate limit."""
+    import time
+    now = time.time()
+
+    if client_ip not in _rate_limit_requests:
+        _rate_limit_requests[client_ip] = []
+
+    # Clean old requests
+    _rate_limit_requests[client_ip] = [
+        t for t in _rate_limit_requests[client_ip]
+        if now - t < _rate_limit_window
+    ]
+
+    if len(_rate_limit_requests[client_ip]) >= _rate_limit_max:
+        return False
+
+    _rate_limit_requests[client_ip].append(now)
+    return True
 
 
 @app.post("/api/tts/generate")
-async def generate_tts(request: GenerateTTSRequest, background_tasks: BackgroundTasks):
+async def generate_tts(request: GenerateTTSRequest, req: Request, background_tasks: BackgroundTasks):
     """
     Start TTS generation for a document.
 
     Returns immediately with a job ID. Poll /api/tts/status/{job_id} for progress.
     """
+    client_ip = req.client.host if req.client else "unknown"
+    logger.info(f"TTS generation request from {client_ip}: {request.file_path}")
+
+    # Check rate limit
+    if not check_rate_limit(client_ip):
+        logger.warning(f"Rate limit exceeded for {client_ip}")
+        raise HTTPException(
+            status_code=429,
+            detail="Too many requests. Please wait before trying again."
+        )
+
     settings = get_settings()
+    start_time = datetime.now()
 
     # Parse the file path
     file_path = Path(request.file_path)
@@ -217,29 +296,37 @@ async def generate_tts(request: GenerateTTSRequest, background_tasks: Background
         if len(parts) >= 2:
             file_path = settings.translate_dir / parts[0] / parts[1]
         else:
+            logger.error(f"Invalid file path: {request.file_path}")
             raise HTTPException(status_code=400, detail="Invalid file path")
 
     if not file_path.exists():
+        logger.error(f"File not found: {file_path}")
         raise HTTPException(status_code=404, detail="File not found")
 
     # Extract language from path
     language = file_path.parent.name
+    logger.info(f"Processing file: {file_path.name}, language: {language}")
 
     # Parse document
     parser = create_parser()
     document = parser.parse_file(file_path, language)
+    logger.info(f"Parsed document: {len(document.chunks)} chunks, {document.total_characters} chars")
 
     # Start generation
     tts_service = get_tts_service()
 
     # Generate synchronously for now (can be made async with background tasks)
     results = []
+    chunk_count = 0
     async for response in tts_service.generate_tts_for_document(
         document,
         request.settings,
         request.chunks_to_generate
     ):
         results.append(response)
+        if response.completed_chunks > chunk_count:
+            chunk_count = response.completed_chunks
+            logger.info(f"Progress: {chunk_count}/{response.total_chunks} chunks completed")
 
     final_response = results[-1] if results else None
 
@@ -249,9 +336,109 @@ async def generate_tts(request: GenerateTTSRequest, background_tasks: Background
             "document": document,
             "response": final_response
         }
+
+        duration = (datetime.now() - start_time).total_seconds()
+        logger.info(f"TTS generation completed in {duration:.2f}s - Job ID: {final_response.job_id}")
         return final_response
 
+    logger.error("TTS generation failed - no response")
     raise HTTPException(status_code=500, detail="Failed to generate TTS")
+
+
+@app.post("/api/tts/generate/stream")
+async def generate_tts_stream(request: GenerateTTSRequest, req: Request):
+    """
+    Start TTS generation with SSE streaming for real-time progress updates.
+
+    Returns Server-Sent Events with progress updates.
+    """
+    client_ip = req.client.host if req.client else "unknown"
+    logger.info(f"SSE TTS generation request from {client_ip}: {request.file_path}")
+
+    # Check rate limit
+    if not check_rate_limit(client_ip):
+        logger.warning(f"Rate limit exceeded for {client_ip}")
+        raise HTTPException(
+            status_code=429,
+            detail="Too many requests. Please wait before trying again."
+        )
+
+    settings = get_settings()
+
+    # Parse the file path
+    file_path = Path(request.file_path)
+    if not file_path.is_absolute():
+        parts = request.file_path.split("/")
+        if len(parts) >= 2:
+            file_path = settings.translate_dir / parts[0] / parts[1]
+        else:
+            raise HTTPException(status_code=400, detail="Invalid file path")
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    language = file_path.parent.name
+
+    async def event_generator():
+        """Generate SSE events for TTS progress."""
+        try:
+            parser = create_parser()
+            document = parser.parse_file(file_path, language)
+
+            # Send initial event
+            yield {
+                "event": "start",
+                "data": json.dumps({
+                    "total_chunks": len(document.chunks),
+                    "total_characters": document.total_characters,
+                    "filename": document.filename
+                })
+            }
+
+            tts_service = get_tts_service()
+
+            async for response in tts_service.generate_tts_for_document(
+                document,
+                request.settings,
+                request.chunks_to_generate
+            ):
+                # Store for later export
+                _active_jobs[response.job_id] = {
+                    "document": document,
+                    "response": response
+                }
+
+                yield {
+                    "event": "progress",
+                    "data": json.dumps({
+                        "job_id": response.job_id,
+                        "completed_chunks": response.completed_chunks,
+                        "total_chunks": response.total_chunks,
+                        "status": response.status,
+                        "percentage": int((response.completed_chunks / response.total_chunks) * 100) if response.total_chunks > 0 else 0
+                    })
+                }
+
+                # Small delay to prevent flooding
+                await asyncio.sleep(0.1)
+
+            # Send completion event
+            yield {
+                "event": "complete",
+                "data": json.dumps({
+                    "job_id": response.job_id,
+                    "status": response.status
+                })
+            }
+
+        except Exception as e:
+            logger.error(f"SSE generation error: {e}")
+            yield {
+                "event": "error",
+                "data": json.dumps({"error": str(e)})
+            }
+
+    return EventSourceResponse(event_generator())
 
 
 @app.get("/api/tts/status/{job_id}", response_model=GenerateTTSResponse)

@@ -10,6 +10,7 @@ import asyncio
 import io
 import time
 import json
+import logging
 from pathlib import Path
 from typing import Optional, AsyncGenerator
 from datetime import datetime
@@ -26,6 +27,9 @@ from models.schemas import (
     GenerationSummary,
 )
 from config import get_settings
+
+# Get logger
+logger = logging.getLogger('tts_backend.tts_service')
 
 
 class TTSService:
@@ -74,11 +78,13 @@ class TTSService:
             GenerateTTSResponse with progress updates
         """
         job_id = str(uuid.uuid4())
+        logger.info(f"Starting TTS job {job_id} for {document.filename}")
 
         # Filter chunks if specific IDs requested
         chunks = document.chunks
         if chunk_ids:
             chunks = [c for c in chunks if c.id in chunk_ids]
+            logger.info(f"Processing {len(chunks)} specific chunks")
 
         # Initialize job status
         response = GenerateTTSResponse(
@@ -93,12 +99,15 @@ class TTSService:
         self._audio_cache[job_id] = []
         self._api_stats[job_id] = []  # Initialize stats tracking
 
+        logger.info(f"Job {job_id}: Processing {len(chunks)} chunks")
         yield response
 
-        # Process chunks
+        # Process chunks with rate limiting
         async with httpx.AsyncClient(timeout=60.0) as client:
-            for chunk in chunks:
+            for i, chunk in enumerate(chunks):
+                chunk_start = time.time()
                 try:
+                    logger.debug(f"Job {job_id}: Processing chunk {i+1}/{len(chunks)} (ID: {chunk.id}, {len(chunk.text)} chars)")
                     result, stats = await self._process_chunk_with_stats(client, chunk, settings)
                     response.results.append(result)
                     self._api_stats[job_id].append(stats)
@@ -106,11 +115,19 @@ class TTSService:
                     if result.success and result.audio_base64:
                         audio_bytes = base64.b64decode(result.audio_base64)
                         self._audio_cache[job_id].append((chunk.id, audio_bytes))
+                        logger.info(f"Job {job_id}: Chunk {i+1}/{len(chunks)} completed in {stats.duration_ms}ms")
+                    else:
+                        logger.warning(f"Job {job_id}: Chunk {i+1} failed - {result.error}")
 
                     response.completed_chunks += 1
                     yield response
 
+                    # Small delay between API calls to avoid rate limiting
+                    if i < len(chunks) - 1:
+                        await asyncio.sleep(0.2)
+
                 except Exception as e:
+                    logger.error(f"Job {job_id}: Chunk {i+1} exception - {str(e)}")
                     response.results.append(TTSChunkResult(
                         chunk_id=chunk.id,
                         success=False,
@@ -132,6 +149,9 @@ class TTSService:
         # Mark as completed
         response.status = "completed"
         self._job_status[job_id] = response
+        successful = sum(1 for r in response.results if r.success)
+        failed = len(response.results) - successful
+        logger.info(f"Job {job_id} completed: {successful} successful, {failed} failed")
         yield response
 
     async def _process_chunk_with_stats(

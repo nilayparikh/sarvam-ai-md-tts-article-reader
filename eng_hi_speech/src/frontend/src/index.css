@@ -6,8 +6,15 @@
 
 body {
   min-height: 100vh;
-  background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+  background: linear-gradient(
+    135deg,
+    #0a0a1a 0%,
+    #0f0f23 25%,
+    #1a1a2e 50%,
+    #16213e 100%
+  );
   background-attachment: fixed;
+  overflow-x: hidden;
 }
 
 /* Animated background gradient */
@@ -20,19 +27,63 @@ body::before {
   height: 100%;
   background:
     radial-gradient(
-      ellipse at 20% 20%,
-      rgba(99, 102, 241, 0.15) 0%,
-      transparent 50%
+      ellipse at 10% 20%,
+      rgba(99, 102, 241, 0.2) 0%,
+      transparent 40%
     ),
     radial-gradient(
-      ellipse at 80% 80%,
-      rgba(236, 72, 153, 0.1) 0%,
-      transparent 50%
+      ellipse at 90% 80%,
+      rgba(236, 72, 153, 0.15) 0%,
+      transparent 40%
     ),
     radial-gradient(
       ellipse at 50% 50%,
-      rgba(139, 92, 246, 0.08) 0%,
-      transparent 60%
+      rgba(139, 92, 246, 0.1) 0%,
+      transparent 50%
+    );
+  pointer-events: none;
+  z-index: -1;
+  animation: backgroundPulse 8s ease-in-out infinite;
+}
+
+@keyframes backgroundPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* Floating particles effect */
+body::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image:
+    radial-gradient(
+      1px 1px at 20% 30%,
+      rgba(255, 255, 255, 0.15) 50%,
+      transparent 50%
+    ),
+    radial-gradient(
+      1px 1px at 40% 70%,
+      rgba(255, 255, 255, 0.1) 50%,
+      transparent 50%
+    ),
+    radial-gradient(
+      1px 1px at 60% 40%,
+      rgba(255, 255, 255, 0.12) 50%,
+      transparent 50%
+    ),
+    radial-gradient(
+      1px 1px at 80% 20%,
+      rgba(255, 255, 255, 0.08) 50%,
+      transparent 50%
     );
   pointer-events: none;
   z-index: -1;
@@ -40,18 +91,29 @@ body::before {
 
 /* Glass morphism card styles */
 .glass-card {
-  background: rgba(26, 26, 46, 0.6);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(26, 26, 46, 0.7);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  box-shadow:
+    0 8px 32px 0 rgba(0, 0, 0, 0.37),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+  transition: all 0.3s ease;
+}
+
+.glass-card:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow:
+    0 12px 40px 0 rgba(99, 102, 241, 0.15),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
 }
 
 .glass-card-light {
   background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
 }
@@ -167,12 +229,28 @@ body::before {
 /* Audio player custom styles */
 audio {
   width: 100%;
-  border-radius: 8px;
+  border-radius: 10px;
   outline: none;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
 }
 
 audio::-webkit-media-controls-panel {
-  background: rgba(26, 26, 46, 0.8);
+  background: linear-gradient(
+    180deg,
+    rgba(26, 26, 46, 0.9),
+    rgba(15, 15, 35, 0.95)
+  );
+  border-radius: 10px;
+}
+
+audio::-webkit-media-controls-play-button {
+  background-color: rgba(99, 102, 241, 0.3);
+  border-radius: 50%;
+}
+
+audio::-webkit-media-controls-current-time-display,
+audio::-webkit-media-controls-time-remaining-display {
+  color: #f1f5f9;
 }
 
 /* Loading animation */
@@ -187,7 +265,21 @@ audio::-webkit-media-controls-panel {
 }
 
 .loading-pulse {
-  animation: pulse 2s ease-in-out infinite;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Spinning animation for loading */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-spin {
+  animation: spin 1s linear infinite;
 }
 
 /* Fade in animation */
@@ -206,6 +298,38 @@ audio::-webkit-media-controls-panel {
   animation: fadeIn 0.3s ease-out;
 }
 
+/* Slide up animation */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.slide-up {
+  animation: slideUp 0.4s ease-out;
+}
+
+/* Scale in animation */
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.scale-in {
+  animation: scaleIn 0.3s ease-out;
+}
+
 /* Progress bar animation */
 @keyframes progressGlow {
   0%,
@@ -219,4 +343,60 @@ audio::-webkit-media-controls-panel {
 
 .progress-glow {
   animation: progressGlow 1.5s ease-in-out infinite;
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #6366f1, #ec4899);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Success/Error states */
+.success-border {
+  border-color: rgba(34, 197, 94, 0.5) !important;
+}
+
+.error-border {
+  border-color: rgba(239, 68, 68, 0.5) !important;
+}
+
+/* Hover lift effect */
+.hover-lift {
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+/* Button press effect */
+.press-effect:active {
+  transform: scale(0.98);
+}
+
+/* Skeleton loading */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 25%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.05) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
 }

@@ -74,6 +74,9 @@ Thumbs.db
 pipeline/speech/*.mp3
 pipeline/speech/*.wav
 
+!pipeline/speech/artilce-1a_20260208_210622.mp3
+!pipeline/speech/artilce-1b_20260208_210938.mp3
+
 # Logs
 *.log
 logs/

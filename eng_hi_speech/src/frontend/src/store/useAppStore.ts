@@ -11,6 +11,15 @@ import type {
   UploadedFileInfo,
 } from "../types";
 
+// Progress tracking interface
+export interface GenerationProgress {
+  percentage: number;
+  completedChunks: number;
+  totalChunks: number;
+  message: string;
+  currentChunk?: string;
+}
+
 interface AppState {
   // File selection
   languages: LanguageFiles[];
@@ -33,6 +42,11 @@ interface AppState {
   isGenerating: boolean;
   generationSummary: GenerationSummary | null;
 
+  // Progress tracking
+  generationProgress: GenerationProgress | null;
+  showLoadingOverlay: boolean;
+  loadingMessage: string;
+
   // Options
   speakers: Speaker[];
   availableLanguages: Language[];
@@ -54,6 +68,8 @@ interface AppState {
   setTTSJob: (job: GenerateTTSResponse | null) => void;
   setIsGenerating: (generating: boolean) => void;
   setGenerationSummary: (summary: GenerationSummary | null) => void;
+  setGenerationProgress: (progress: GenerationProgress | null) => void;
+  setShowLoadingOverlay: (show: boolean, message?: string) => void;
   setSpeakers: (speakers: Speaker[]) => void;
   setAvailableLanguages: (languages: Language[]) => void;
   setPreviewChunkId: (id: number | null) => void;
@@ -88,6 +104,9 @@ export const useAppStore = create<AppState>((set) => ({
   ttsJob: null,
   isGenerating: false,
   generationSummary: null,
+  generationProgress: null,
+  showLoadingOverlay: false,
+  loadingMessage: "Processing...",
   speakers: [],
   availableLanguages: [],
   previewChunkId: null,
@@ -112,6 +131,7 @@ export const useAppStore = create<AppState>((set) => ({
       generationSummary: null,
       isUploadMode: false,
       uploadedFile: null,
+      generationProgress: null,
     }),
   setFileContent: (fileContent) => set({ fileContent }),
   setIsUploadMode: (isUploadMode) =>
@@ -129,6 +149,11 @@ export const useAppStore = create<AppState>((set) => ({
   setTTSJob: (ttsJob) => set({ ttsJob }),
   setIsGenerating: (isGenerating) => set({ isGenerating }),
   setGenerationSummary: (generationSummary) => set({ generationSummary }),
+  setGenerationProgress: (generationProgress) => set({ generationProgress }),
+  setShowLoadingOverlay: (
+    showLoadingOverlay,
+    loadingMessage = "Processing...",
+  ) => set({ showLoadingOverlay, loadingMessage }),
   setSpeakers: (speakers) => set({ speakers }),
   setAvailableLanguages: (availableLanguages) => set({ availableLanguages }),
   setPreviewChunkId: (previewChunkId) => set({ previewChunkId }),
@@ -142,5 +167,7 @@ export const useAppStore = create<AppState>((set) => ({
       generationSummary: null,
       isUploadMode: false,
       uploadedFile: null,
+      generationProgress: null,
+      showLoadingOverlay: false,
     }),
 }));

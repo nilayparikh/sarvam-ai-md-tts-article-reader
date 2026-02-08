@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import type {
   LanguageFiles,
   FileInfo,
@@ -15,13 +15,87 @@ import type {
   GenerationSummary,
 } from "../types";
 
+// Request queue for throttling
+let pendingRequests = 0;
+const MAX_CONCURRENT_REQUESTS = 3;
+const requestQueue: Array<() => Promise<void>> = [];
+
+const processQueue = () => {
+  while (pendingRequests < MAX_CONCURRENT_REQUESTS && requestQueue.length > 0) {
+    const next = requestQueue.shift();
+    if (next) {
+      pendingRequests++;
+      next().finally(() => {
+        pendingRequests--;
+        processQueue();
+      });
+    }
+  }
+};
+
 const api = axios.create({
   baseURL: "/api",
   headers: {
     "Content-Type": "application/json",
   },
-  timeout: 300000, // 5 minute timeout for long-running TTS generation
+  timeout: 600000, // 10 minute timeout for long-running TTS generation
 });
+
+// Add request interceptor for logging
+api.interceptors.request.use(
+  (config) => {
+    console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
+    return config;
+  },
+  (error) => {
+    console.error("[API] Request error:", error);
+    return Promise.reject(error);
+  },
+);
+
+// Add response interceptor for error handling
+api.interceptors.response.use(
+  (response) => {
+    console.log(
+      `[API] Response ${response.status} from ${response.config.url}`,
+    );
+    return response;
+  },
+  async (error: AxiosError) => {
+    const originalRequest = error.config;
+
+    // Log detailed error info
+    console.error("[API] Error:", {
+      url: originalRequest?.url,
+      status: error.response?.status,
+      message: error.message,
+      data: error.response?.data,
+    });
+
+    // Handle rate limiting with exponential backoff
+    if (error.response?.status === 429) {
+      console.warn("[API] Rate limited, retrying after delay...");
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      return api.request(originalRequest!);
+    }
+
+    // Handle timeout errors with a clearer message
+    if (error.code === "ECONNABORTED" || error.message.includes("timeout")) {
+      throw new Error(
+        "Request timed out. The server might be processing a large document. Please try again or use a smaller document.",
+      );
+    }
+
+    // Handle network errors
+    if (!error.response) {
+      throw new Error(
+        "Unable to connect to the server. Please check if the backend is running.",
+      );
+    }
+
+    return Promise.reject(error);
+  },
+);
 
 // Health
 export const checkHealth = async (): Promise<HealthResponse> => {
@@ -121,6 +195,133 @@ export const generateTTS = async (
     chunks_to_generate: chunksToGenerate,
   });
   return response.data;
+};
+
+// TTS Generation Progress Callback Interface
+export interface TTSProgressEvent {
+  type: "start" | "progress" | "complete" | "error";
+  data: {
+    job_id?: string;
+    completed_chunks?: number;
+    total_chunks?: number;
+    total_characters?: number;
+    filename?: string;
+    status?: string;
+    percentage?: number;
+    error?: string;
+  };
+}
+
+// TTS Generation with SSE streaming for real-time progress
+export const generateTTSWithProgress = (
+  filePath: string,
+  settings: TTSSettings,
+  onProgress: (event: TTSProgressEvent) => void,
+  chunksToGenerate?: number[],
+): { abort: () => void; promise: Promise<GenerateTTSResponse | null> } => {
+  const abortController = new AbortController();
+
+  const promise = new Promise<GenerateTTSResponse | null>((resolve, reject) => {
+    const eventSource = new EventSource(
+      `/api/tts/generate/stream?payload=${encodeURIComponent(
+        JSON.stringify({
+          file_path: filePath,
+          settings,
+          chunks_to_generate: chunksToGenerate,
+        }),
+      )}`,
+    );
+
+    // Fall back to regular HTTP if SSE fails
+    const fetchWithProgress = async () => {
+      console.log("[API] SSE not available, using polling fallback");
+
+      try {
+        onProgress({
+          type: "start",
+          data: { filename: filePath },
+        });
+
+        const response = await generateTTS(
+          filePath,
+          settings,
+          chunksToGenerate,
+        );
+
+        onProgress({
+          type: "complete",
+          data: {
+            job_id: response.job_id,
+            status: response.status,
+            completed_chunks: response.completed_chunks,
+            total_chunks: response.total_chunks,
+            percentage: 100,
+          },
+        });
+
+        resolve(response);
+      } catch (error) {
+        onProgress({
+          type: "error",
+          data: {
+            error: error instanceof Error ? error.message : "Unknown error",
+          },
+        });
+        reject(error);
+      }
+    };
+
+    eventSource.onerror = () => {
+      eventSource.close();
+      fetchWithProgress();
+    };
+
+    eventSource.onopen = () => {
+      console.log("[API] SSE connection opened");
+    };
+
+    eventSource.addEventListener("start", (e) => {
+      const data = JSON.parse(e.data);
+      onProgress({ type: "start", data });
+    });
+
+    eventSource.addEventListener("progress", (e) => {
+      const data = JSON.parse(e.data);
+      onProgress({ type: "progress", data });
+    });
+
+    eventSource.addEventListener("complete", (e) => {
+      const data = JSON.parse(e.data);
+      eventSource.close();
+      onProgress({ type: "complete", data });
+
+      // Get full response via regular API
+      if (data.job_id) {
+        getTTSStatus(data.job_id).then(resolve).catch(reject);
+      } else {
+        resolve(null);
+      }
+    });
+
+    eventSource.addEventListener("error", (e) => {
+      if (e instanceof MessageEvent) {
+        const data = JSON.parse(e.data);
+        onProgress({ type: "error", data });
+        reject(new Error(data.error || "TTS generation failed"));
+      }
+      eventSource.close();
+    });
+
+    abortController.signal.addEventListener("abort", () => {
+      eventSource.close();
+      resolve(null);
+    });
+  });
+
+  return {
+    abort: () => abortController.abort(),
+    promise,
+  };
 };
 
 export const getTTSStatus = async (
